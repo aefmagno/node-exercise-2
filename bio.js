@@ -27,7 +27,8 @@ class Bio {
     const [sex, ...bioData] = restData
     const updatedCsvDataList = csvDataList
     const UpperCasedName = name.toUpperCase()
-    const index = csvDataList.indexOf(csvDataList.find((record) => record.name.toUpperCase() === UpperCasedName))
+    const find = csvDataList.find((record) => record.name.toUpperCase() === UpperCasedName)
+    const index = csvDataList.indexOf(find)
 
     if (index === -1) {
       return null
