@@ -13,56 +13,43 @@ class Bio {
 }
 
 function create(newBio, csvDataList) {
-  const titleCasedName = newBio.name.charAt(0).toUpperCase() + newBio.name.substr(1).toLowerCase()
   const upperCasedSex = newBio.sex.toUpperCase()
-  const UpperCasedName = newBio.name.toUpperCase()
-  const bioRecord = csvDataList.find((record) => record.name.toUpperCase() === UpperCasedName)
-
-  if (bioRecord === undefined) {
-    return new Bio(titleCasedName, upperCasedSex, newBio.age, newBio.height, newBio.weight)
-  } return null
-}
-
-function update(name, [...restData], csvDataList) {
-  const titleCasedName = name.charAt(0).toUpperCase() + name.substr(1).toLowerCase()
-  const [sex, ...bioData] = restData
-  const updatedCsvDataList = csvDataList
-  const UpperCasedName = name.toUpperCase()
-  const find = csvDataList.find((record) => record.name.toUpperCase() === UpperCasedName)
-  const index = csvDataList.indexOf(find)
-
-  if (index === -1) {
+  if (csvDataList.has(newBio.name)) {
     return null
-  } updatedCsvDataList[index] = new Bio(titleCasedName, sex.toUpperCase(), ...bioData)
-  return updatedCsvDataList
+  } return new Bio(newBio.name, upperCasedSex, newBio.age, newBio.height, newBio.weight)
 }
 
 function read(name, csvDataList) {
-  const upperCasedName = name.toUpperCase()
-  const bioRecord = csvDataList.find((record) => record.name.toUpperCase() === upperCasedName)
+  return csvDataList.get(name)
+}
 
-  if (bioRecord === undefined) {
-    return null
-  } return bioRecord
+function update(name, [...restData], csvDataList) {
+  const [sex, ...bioData] = restData
+  const bioMap = csvDataList
+  if (bioMap.has(name)) {
+    bioMap.set(name, new Bio(name, sex.toUpperCase(), ...bioData))
+    return bioMap
+  } return null
 }
 
 function deleteBio(name, csvDataList) {
-  const upperCasedName = name.toUpperCase()
-  const bioRecord = csvDataList.find((record) => record.name.toUpperCase() === upperCasedName)
-
-  if (bioRecord === undefined) {
-    return null
-  } return csvDataList.filter((record) => record.name.toUpperCase() !== upperCasedName)
+  const map = csvDataList
+  if (map.has(name)) {
+    map.delete(name)
+    return map
+  } return null
 }
 
 function readCSV(filePath) {
   try {
     const csvData = fs.readFileSync(filePath, { encoding: 'utf8' })
-    const [, ...csvDataArray] = csvjson.toArray(csvData)
+    const bioArray = csvjson.toArray(csvData).splice(1)
+    const bioMap = new Map()
 
-    return csvDataArray.map(
-      ([name, sex, ...element]) => new Bio(name, sex, ...element),
-    )
+    for (let i = 0; i < bioArray.length; i += 1) {
+      const [name, ...restData] = bioArray[i]
+      bioMap.set(name, new Bio(name, ...restData))
+    } return bioMap
   } catch (err) {
     return null
   }
@@ -71,17 +58,21 @@ function readCSV(filePath) {
 function writeCSV(filePath, csvDataList) {
   const options = {
     delimiter: ',',
-    headers: 'key',
+    headers: 'none',
   }
 
-  const rawCSV = csvjson.toCSV(csvDataList, options)
-  const csvSplit = rawCSV.split('\n')
+  const bioArray = []
+  csvDataList.forEach((value) => bioArray.push(value))
+
   let formattedCSV = '"name",\t\t"sex",\t\t"age",\t\t"height",\t\t"weight"\n'
 
+  const rawCSV = csvjson.toCSV(bioArray, options)
+  const csvSplit = rawCSV.split('\n')
   for (let i = 1; i < csvSplit.length; i += 1) {
     const [name, sex, age, height, weight] = csvSplit[i].split(',')
-    formattedCSV += `"${name}",\t\t"${sex}",\t\t${age},\t\t\t${height},\t\t\t\t${weight}\n`
+    formattedCSV += `"${name}",\t\t"${sex}",\t\t${age},\t\t\t${height},\t\t\t${weight}\n`
   }
+
   try {
     fs.writeFileSync(filePath, formattedCSV)
     return true
@@ -90,32 +81,48 @@ function writeCSV(filePath, csvDataList) {
   }
 }
 
-function recordValueValidation(sex, age, height, weight, argLength) {
+function validateCreateUpdate(sex, age, height, weight, argLength) {
   if (argLength !== 8) { return 'Invalid Argument Count.' }
   if (!'FfMm'.includes(sex)) { return 'Incorrect Sex.' }
+  if (age <= 0) { return 'Invalid Age' }
   if (typeof age !== 'number' && isNaN(age)) { return 'Age Not A Number.' }
   if (age > 0 && age < 18) { return 'Minors Are Not Permitted.' }
+  if (height <= 0) { return 'Invalid Height.' }
   if (typeof height !== 'number' && isNaN(height)) { return 'Height Not A Number.' }
+  if (weight <= 0) { return 'Invalid Weight' }
   if (typeof weight !== 'number' && isNaN(weight)) { return 'Weight Not A Number.' }
   return null
 }
 
+function formatName(name) {
+  if (typeof name === 'string') {
+    return name.charAt(0).toUpperCase() + name.substring(1).toLowerCase()
+  } return null
+}
+
 const [, , command, name, ...restArgs] = argv
+const titleCasedName = formatName(name)
+if (titleCasedName === null) {
+  console.log('Invalid Argument: Provide Name.')
+}
 
 const filePath = 'biostats.csv'
 const csvDataList = readCSV(filePath)
+if (csvDataList === null) {
+  console.log('Unable to Retrieve CSV Data.')
+}
 
-if (csvDataList != null && command != null) {
+if (csvDataList != null && command != null && titleCasedName != null) {
   switch (command.toLowerCase()) {
     case '-c': {
-      const checkValues = recordValueValidation(...restArgs, argv.length)
+      const checkValues = validateCreateUpdate(...restArgs, argv.length)
       if (checkValues != null) {
         console.log(checkValues)
-      } else if (create(new Bio(name, ...restArgs), csvDataList) == null) {
+      } else if (create(new Bio(titleCasedName, ...restArgs), csvDataList) == null) {
         console.log('The Record Already Exists.')
       } else {
-        const bioRecord = create(new Bio(name, ...restArgs), csvDataList)
-        const updatedCsvDataList = [...csvDataList, bioRecord]
+        const bioRecord = create(new Bio(titleCasedName, ...restArgs), csvDataList)
+        const updatedCsvDataList = csvDataList.set(titleCasedName, bioRecord)
         if (writeCSV(filePath, updatedCsvDataList) !== true) {
           console.log('There Was An Error In Updating the CSV File.')
         }
@@ -125,11 +132,11 @@ if (csvDataList != null && command != null) {
 
     case '-r': {
       if (argv.length === 4) {
-        const record = read(name, csvDataList)
-        if (record === null) {
+        const record = read(titleCasedName, csvDataList)
+        if (record === undefined) {
           console.log('Record Does Not Exist.')
         } else {
-          const sexFull = record.sex === 'M' ? 'male' : 'female'
+          const sexFull = record.sex === 'M' ? 'Male' : 'Female'
           const printRecord = `
           Bio Information
 
@@ -150,11 +157,11 @@ if (csvDataList != null && command != null) {
       break
     }
     case '-u': {
-      const checkValues = recordValueValidation(...restArgs, argv.length)
+      const checkValues = validateCreateUpdate(...restArgs, argv.length)
       if (checkValues != null) {
         console.log(checkValues)
       } else {
-        const updatedCsvDataList = update(name, [...restArgs], csvDataList)
+        const updatedCsvDataList = update(titleCasedName, [...restArgs], csvDataList)
         if (updatedCsvDataList === null) {
           console.log('Record Does Not Exist.')
         } else {
@@ -166,11 +173,11 @@ if (csvDataList != null && command != null) {
 
     case '-d': {
       if (argv.length === 4) {
-        const [, , , bioName] = argv
-        if (deleteBio(bioName, csvDataList) == null) {
+        const updatedMap = deleteBio(titleCasedName, csvDataList)
+        if (updatedMap === null) {
           console.log('Record Does Not Exist.')
         } else {
-          writeCSV(filePath, deleteBio(bioName, csvDataList))
+          writeCSV(filePath, updatedMap)
         }
       } else {
         console.log('Please Input Only 2 Arguments')
