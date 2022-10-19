@@ -14,13 +14,26 @@ class Bio {
 
 function create(newBio, csvDataList) {
   const upperCasedSex = newBio.sex.toUpperCase()
-  if (csvDataList.has(newBio.name)) {
+  const map = csvDataList
+
+  if (map.has(newBio.name)) {
     return null
-  } return new Bio(newBio.name, upperCasedSex, newBio.age, newBio.height, newBio.weight)
+  }
+
+  map.set(
+    newBio.name,
+    new Bio(newBio.name, upperCasedSex, newBio.age, newBio.height, newBio.weight),
+  )
+
+  return map
 }
 
 function read(name, csvDataList) {
-  return csvDataList.get(name)
+  if (csvDataList.has(name)) {
+    return csvDataList.get(name)
+  }
+
+  return null
 }
 
 function update(name, [...restData], csvDataList) {
@@ -83,6 +96,7 @@ function writeCSV(filePath, csvDataList) {
 
 function validateCreateUpdate(sex, age, height, weight, argLength) {
   if (argLength !== 8) { return 'Invalid Argument Count.' }
+  if (sex.length > 1) { return 'Invalid Sex Input.' }
   if (!'FfMm'.includes(sex)) { return 'Incorrect Sex.' }
   if (age <= 0) { return 'Invalid Age' }
   if (typeof age !== 'number' && isNaN(age)) { return 'Age Not A Number.' }
@@ -118,12 +132,11 @@ if (csvDataList != null && command != null && titleCasedName != null) {
       const checkValues = validateCreateUpdate(...restArgs, argv.length)
       if (checkValues != null) {
         console.log(checkValues)
-      } else if (create(new Bio(titleCasedName, ...restArgs), csvDataList) == null) {
-        console.log('The Record Already Exists.')
       } else {
-        const bioRecord = create(new Bio(titleCasedName, ...restArgs), csvDataList)
-        const updatedCsvDataList = csvDataList.set(titleCasedName, bioRecord)
-        if (writeCSV(filePath, updatedCsvDataList) !== true) {
+        const newBio = create(new Bio(titleCasedName, ...restArgs), csvDataList)
+        if (newBio === null) {
+          console.log('Create Failed: The Record Already Exists.')
+        } else if (writeCSV(filePath, newBio) === false) {
           console.log('There Was An Error In Updating the CSV File.')
         }
       }
@@ -133,13 +146,12 @@ if (csvDataList != null && command != null && titleCasedName != null) {
     case '-r': {
       if (argv.length === 4) {
         const record = read(titleCasedName, csvDataList)
-        if (record === undefined) {
-          console.log('Record Does Not Exist.')
+        if (record === null) {
+          console.log('Read Failed: Record Does Not Exist.')
         } else {
           const sexFull = record.sex === 'M' ? 'Male' : 'Female'
           const printRecord = `
           Bio Information
-
           Name:                   ${record.name}
           Sex:                    ${sexFull}
           Age:                    ${record.age}
@@ -163,7 +175,7 @@ if (csvDataList != null && command != null && titleCasedName != null) {
       } else {
         const updatedCsvDataList = update(titleCasedName, [...restArgs], csvDataList)
         if (updatedCsvDataList === null) {
-          console.log('Record Does Not Exist.')
+          console.log('Update Failed: Record Does Not Exist.')
         } else {
           writeCSV(filePath, updatedCsvDataList)
         }
@@ -175,7 +187,7 @@ if (csvDataList != null && command != null && titleCasedName != null) {
       if (argv.length === 4) {
         const updatedMap = deleteBio(titleCasedName, csvDataList)
         if (updatedMap === null) {
-          console.log('Record Does Not Exist.')
+          console.log('Delete Failed: Record Does Not Exist.')
         } else {
           writeCSV(filePath, updatedMap)
         }
@@ -186,7 +198,7 @@ if (csvDataList != null && command != null && titleCasedName != null) {
     }
 
     default:
-      console.log('Please Provide An Appropriate Command Flag.')
+      console.log('Please Provide An Appropriate Command Flag. [-c, -r, -u, -d]')
       break
   }
 }
